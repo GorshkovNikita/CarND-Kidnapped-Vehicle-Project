@@ -141,7 +141,13 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
-
+    std::default_random_engine gen;
+    std::discrete_distribution<double> d(weights);
+    std::vector<Particle> new_particles;
+    for (int i = 0; i < num_particles; i++) {
+        new_particles.push_back(particles[d(gen)]);
+    }
+    particles = new_particles;
 }
 
 void ParticleFilter::SetAssociations(Particle& particle, 
