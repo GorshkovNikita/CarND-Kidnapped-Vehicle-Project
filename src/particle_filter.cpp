@@ -64,14 +64,14 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
     std::normal_distribution<double> x_generator{0, std_pos[0]};
     std::normal_distribution<double> y_generator{0, std_pos[1]};
     std::normal_distribution<double> theta_generator{0, std_pos[2]};
+    double theta_offset = yaw_rate * delta_t;
 
     for (int i = 0; i < num_particles; i++) {
-        double theta_offset = yaw_rate * delta_t;
         particles[i].x +=
-                (velocity / (theta_offset) * (sin(particles[i].theta + theta_offset) - sin(particles[i].theta)))
+                (velocity * (sin(particles[i].theta + theta_offset) - sin(particles[i].theta)) / yaw_rate)
                 + x_generator(gen);
         particles[i].y +=
-                (velocity / (theta_offset) * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)))
+                (velocity * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)) / yaw_rate)
                 + y_generator(gen);
         particles[i].theta += theta_offset + theta_generator(gen);
     }
@@ -146,9 +146,6 @@ void ParticleFilter::resample() {
     std::vector<Particle> new_particles(num_particles);
     for (int i = 0; i < num_particles; i++) {
         Particle p = particles[d(gen)];
-        p.sense_x.clear();
-        p.sense_y.clear();
-        p.associations.clear();
         new_particles.push_back(p);
     }
     particles = new_particles;
