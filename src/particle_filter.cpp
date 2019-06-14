@@ -73,7 +73,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
         particles[i].y +=
                 (velocity * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)) / yaw_rate);
 //                + y_generator(gen);
-        particles[i].theta += theta_offset + theta_generator(gen);
+        particles[i].theta += theta_offset; // + theta_generator(gen);
     }
 }
 
