@@ -30,8 +30,25 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-  num_particles = 0;  // TODO: Set the number of particles
+    num_particles = 1000;  // TODO: Set the number of particles
 
+    std::default_random_engine gen;
+    std::normal_distribution<double> x_generator{x, std[0]};
+    std::normal_distribution<double> y_generator{y, std[1]};
+    std::normal_distribution<double> theta_generator{theta, std[2]};
+
+    for (int i = 0; i < num_particles; i++) {
+        weights.push_back(1.0);
+        Particle p;
+        p.id = i;
+        p.x = x_generator(gen);
+        p.y = y_generator(gen);
+        p.theta = theta_generator(gen);
+        p.weight = 1.0;
+        particles.push_back(p);
+    }
+
+    is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 
@@ -43,11 +60,24 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
+    std::default_random_engine gen;
+    std::normal_distribution<double> x_generator{0, std_pos[0]};
+    std::normal_distribution<double> y_generator{0, std_pos[1]};
+    std::normal_distribution<double> theta_generator{0, std_pos[2]};
 
+    for (int i = 0; i < num_particles; i++) {
+        double theta_offset = yaw_rate * delta_t;
+        particles[i].x +=
+                (velocity / (theta_offset) * (sin(particles[i].theta + theta_offset) - sin(particles[i].theta)))
+                + x_generator(gen);
+        particles[i].y +=
+                (velocity / (theta_offset) * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)))
+                + y_generator(gen);
+        particles[i].theta += theta_offset + theta_generator(gen);
+    }
 }
 
-void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
-                                     vector<LandmarkObs>& observations) {
+Map::single_landmark_s ParticleFilter::findNearestLandmark(const LandmarkObs& map_observation, const Map &map_landmarks) {
   /**
    * TODO: Find the predicted measurement that is closest to each 
    *   observed measurement and assign the observed measurement to this 
@@ -56,11 +86,20 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper 
    *   during the updateWeights phase.
    */
-
+    Map::single_landmark_s nearest = map_landmarks.landmark_list[0];
+    double nearest_dist = dist(map_landmarks.landmark_list[0].x_f, map_observation.x, map_landmarks.landmark_list[0].y_f, map_observation.y);
+    for (int i = 1; i < map_landmarks.landmark_list.size(); i++) {
+        double distance = dist(map_landmarks.landmark_list[i].x_f, map_observation.x, map_landmarks.landmark_list[i].y_f, map_observation.y);
+        if (distance < nearest_dist) {
+            nearest = map_landmarks.landmark_list[i];
+            nearest_dist = distance;
+        }
+    }
+    return nearest;
 }
 
-void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
-                                   const vector<LandmarkObs> &observations, 
+void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
+                                   const vector<LandmarkObs> &observations,
                                    const Map &map_landmarks) {
   /**
    * TODO: Update the weights of each particle using a mult-variate Gaussian 
@@ -76,6 +115,23 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
 
+    for (int i = 0; i < num_particles; i++) {
+        Particle& p = particles[i];
+        double rotation_angle = -p.theta;
+        double weight = 1.0;
+        for (int j = 0; j < observations.size(); j++) {
+            double obs_map_x = p.x + observations[j].x * cos(rotation_angle) - observations[j].y * sin(rotation_angle);
+            double obs_map_y = p.y + observations[j].x * sin(rotation_angle) + observations[j].y * cos(rotation_angle);
+            p.sense_x.push_back(obs_map_x);
+            p.sense_y.push_back(obs_map_y);
+            LandmarkObs map_obs {-1, obs_map_x, obs_map_y};
+            Map::single_landmark_s nearest_landmark = findNearestLandmark(map_obs, map_landmarks);
+            p.associations.push_back(nearest_landmark.id_i);
+            weight *= multivProb(std_landmark[0], std_landmark[1], obs_map_x, obs_map_y, nearest_landmark.x_f, nearest_landmark.y_f);
+        }
+        p.weight = weight;
+        weights[i] = weight;
+    }
 }
 
 void ParticleFilter::resample() {
