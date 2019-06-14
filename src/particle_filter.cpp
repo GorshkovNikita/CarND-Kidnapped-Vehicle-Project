@@ -68,11 +68,11 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
 
     for (int i = 0; i < num_particles; i++) {
         particles[i].x +=
-                (velocity * (sin(particles[i].theta + theta_offset) - sin(particles[i].theta)) / yaw_rate)
-                + x_generator(gen);
+                (velocity * (sin(particles[i].theta + theta_offset) - sin(particles[i].theta)) / yaw_rate);
+//                + x_generator(gen);
         particles[i].y +=
-                (velocity * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)) / yaw_rate)
-                + y_generator(gen);
+                (velocity * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)) / yaw_rate);
+//                + y_generator(gen);
         particles[i].theta += theta_offset + theta_generator(gen);
     }
 }
