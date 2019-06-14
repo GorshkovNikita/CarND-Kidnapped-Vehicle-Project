@@ -146,6 +146,9 @@ void ParticleFilter::resample() {
     std::vector<Particle> new_particles;
     for (int i = 0; i < num_particles; i++) {
         Particle p = particles[d(gen)];
+        p.associations.clear();
+        p.sense_x.clear();
+        p.sense_y.clear();
         new_particles.push_back(p);
     }
     particles = new_particles;
