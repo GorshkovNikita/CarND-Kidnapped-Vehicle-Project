@@ -77,7 +77,7 @@ inline double * getError(double gt_x, double gt_y, double gt_theta, double pf_x,
   return error;
 }
 
-double multivProb(double sig_x, double sig_y, double x_obs, double y_obs, double mu_x, double mu_y) {
+inline double multivProb(double sig_x, double sig_y, double x_obs, double y_obs, double mu_x, double mu_y) {
     // calculate normalization term
     double gauss_norm;
     gauss_norm = 1 / (2 * M_PI * sig_x * sig_y);
