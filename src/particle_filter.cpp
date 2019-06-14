@@ -117,6 +117,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
     for (int i = 0; i < num_particles; i++) {
         Particle& p = particles[i];
+        p.associations.clear();
+        p.sense_x.clear();
+        p.sense_y.clear();
         double rotation_angle = -p.theta;
         double weight = 1.0;
         for (int j = 0; j < observations.size(); j++) {
@@ -146,9 +149,6 @@ void ParticleFilter::resample() {
     std::vector<Particle> new_particles;
     for (int i = 0; i < num_particles; i++) {
         Particle p = particles[d(gen)];
-        p.associations.clear();
-        p.sense_x.clear();
-        p.sense_y.clear();
         new_particles.push_back(p);
     }
     particles = new_particles;
