@@ -30,7 +30,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-    num_particles = 1000;  // TODO: Set the number of particles
+    num_particles = 100;  // TODO: Set the number of particles
 
     std::default_random_engine gen;
     std::normal_distribution<double> x_generator{x, std[0]};
@@ -143,9 +143,13 @@ void ParticleFilter::resample() {
    */
     std::default_random_engine gen;
     std::discrete_distribution<> d(weights.begin(), weights.end());
-    std::vector<Particle> new_particles;
+    std::vector<Particle> new_particles(num_particles);
     for (int i = 0; i < num_particles; i++) {
-        new_particles.push_back(particles[d(gen)]);
+        Particle p = particles[d(gen)];
+        p.sense_x.clear();
+        p.sense_y.clear();
+        p.associations.clear();
+        new_particles.push_back(p);
     }
     particles = new_particles;
 }
