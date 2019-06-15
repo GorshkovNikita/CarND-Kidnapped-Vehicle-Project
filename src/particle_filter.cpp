@@ -30,9 +30,10 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-    num_particles = 1000;  // TODO: Set the number of particles
+    num_particles = 100;
 
-    std::default_random_engine gen;
+    std::random_device rd{};
+    std::mt19937 gen{rd()};
     std::normal_distribution<double> x_generator{x, std[0]};
     std::normal_distribution<double> y_generator{y, std[1]};
     std::normal_distribution<double> theta_generator{theta, std[2]};
@@ -51,8 +52,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     is_initialized = true;
 }
 
-void ParticleFilter::prediction(double delta_t, double std_pos[], 
-                                double velocity, double yaw_rate) {
+void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
   /**
    * TODO: Add measurements to each particle and add random Gaussian noise.
    * NOTE: When adding noise you may find std::normal_distribution 
@@ -60,20 +60,29 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
-    std::default_random_engine gen;
+    std::random_device rd{};
+    std::mt19937 gen{rd()};
     std::normal_distribution<double> x_generator{0, std_pos[0]};
     std::normal_distribution<double> y_generator{0, std_pos[1]};
     std::normal_distribution<double> theta_generator{0, std_pos[2]};
     double theta_offset = yaw_rate * delta_t;
+    std::cout << "velocity = " << velocity << " yaw_rate = " << yaw_rate << std::endl;
+
 
     for (int i = 0; i < num_particles; i++) {
-        particles[i].x +=
-                (velocity * (sin(particles[i].theta + theta_offset) - sin(particles[i].theta)) / yaw_rate);
-//                + x_generator(gen);
-        particles[i].y +=
-                (velocity * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)) / yaw_rate);
-//                + y_generator(gen);
-        particles[i].theta += theta_offset; // + theta_generator(gen);
+        // if yaw_rate equals zero, we need to use different equations to avoid division by zero
+        if (fabs(yaw_rate) < 0.0001) {
+            particles[i].x += velocity * cos(particles[i].theta) * delta_t;
+            particles[i].y += velocity * sin(particles[i].theta) * delta_t;
+        } else {
+            particles[i].x +=
+                    (velocity * (sin(particles[i].theta + theta_offset) - sin(particles[i].theta)) / yaw_rate)
+                    + x_generator(gen);
+            particles[i].y +=
+                    (velocity * (cos(particles[i].theta) - cos(particles[i].theta + theta_offset)) / yaw_rate)
+                    + y_generator(gen);
+            particles[i].theta += theta_offset + theta_generator(gen);
+        }
     }
 }
 
@@ -87,9 +96,9 @@ Map::single_landmark_s ParticleFilter::findNearestLandmark(const LandmarkObs& ma
    *   during the updateWeights phase.
    */
     Map::single_landmark_s nearest = map_landmarks.landmark_list[0];
-    double nearest_dist = dist(map_landmarks.landmark_list[0].x_f, map_observation.x, map_landmarks.landmark_list[0].y_f, map_observation.y);
+    double nearest_dist = dist(map_landmarks.landmark_list[0].x_f, map_landmarks.landmark_list[0].y_f, map_observation.x, map_observation.y);
     for (int i = 1; i < map_landmarks.landmark_list.size(); i++) {
-        double distance = dist(map_landmarks.landmark_list[i].x_f, map_observation.x, map_landmarks.landmark_list[i].y_f, map_observation.y);
+        double distance = dist(map_landmarks.landmark_list[i].x_f, map_landmarks.landmark_list[i].y_f, map_observation.x,  map_observation.y);
         if (distance < nearest_dist) {
             nearest = map_landmarks.landmark_list[i];
             nearest_dist = distance;
@@ -117,23 +126,24 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
     for (int i = 0; i < num_particles; i++) {
         Particle& p = particles[i];
-        p.associations.clear();
-        p.sense_x.clear();
-        p.sense_y.clear();
-        double rotation_angle = -p.theta;
+        vector<int> associations;
+        vector<double> sense_x;
+        vector<double> sense_y;
+        double rotation_angle = p.theta;
         double weight = 1.0;
         for (int j = 0; j < observations.size(); j++) {
             double obs_map_x = p.x + observations[j].x * cos(rotation_angle) - observations[j].y * sin(rotation_angle);
             double obs_map_y = p.y + observations[j].x * sin(rotation_angle) + observations[j].y * cos(rotation_angle);
-            p.sense_x.push_back(obs_map_x);
-            p.sense_y.push_back(obs_map_y);
             LandmarkObs map_obs {-1, obs_map_x, obs_map_y};
             Map::single_landmark_s nearest_landmark = findNearestLandmark(map_obs, map_landmarks);
-            p.associations.push_back(nearest_landmark.id_i);
+            sense_x.push_back(obs_map_x);
+            sense_y.push_back(obs_map_y);
+            associations.push_back(nearest_landmark.id_i);
             weight *= multivProb(std_landmark[0], std_landmark[1], obs_map_x, obs_map_y, nearest_landmark.x_f, nearest_landmark.y_f);
         }
         p.weight = weight;
         weights[i] = weight;
+        SetAssociations(p, associations, sense_x, sense_y);
     }
 }
 
@@ -144,12 +154,15 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
-    std::default_random_engine gen;
+    std::random_device rd{};
+    std::mt19937 gen{rd()};
     std::discrete_distribution<> d(weights.begin(), weights.end());
     std::vector<Particle> new_particles;
+    new_particles.reserve(num_particles);
     for (int i = 0; i < num_particles; i++) {
         Particle p = particles[d(gen)];
         new_particles.push_back(p);
+        weights[i] = p.weight;
     }
     particles = new_particles;
 }
